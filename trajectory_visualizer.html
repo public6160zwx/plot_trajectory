@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trajectory Visualizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Syne:wght@400;600;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0c10;--surface:#111318;--surface2:#181c24;--border:rgba(255,255,255,0.07);
+  --accent:#00e5a0;--accent2:#5b8fff;--accent4:#ffb347;
+  --text:#e8eaf0;--muted:#6b7280;
+  --fd:'Syne',sans-serif;--fm:'JetBrains Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--fm);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(0,229,160,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,160,0.03) 1px,transparent 1px);
+  background-size:40px 40px}
+.wrap{position:relative;z-index:1;max-width:1300px;margin:0 auto;padding:2rem 1.5rem}
+header{display:flex;align-items:baseline;gap:1rem;border-bottom:1px solid var(--border);padding-bottom:1.2rem;margin-bottom:2rem}
+header h1{font-family:var(--fd);font-size:1.5rem;font-weight:800;letter-spacing:-0.02em;color:var(--accent)}
+header span{font-size:0.7rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase}
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+.upload-box{border:1px dashed rgba(0,229,160,0.25);border-radius:10px;padding:1.4rem;background:var(--surface);
+  transition:border-color 0.2s,background 0.2s;cursor:pointer;position:relative;overflow:hidden}
+.upload-box:hover,.upload-box.drag{border-color:var(--accent);background:rgba(0,229,160,0.04)}
+.upload-box input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload-box .ub-label{font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--accent);margin-bottom:0.4rem}
+.upload-box .ub-name{font-size:0.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.upload-box .ub-icon{font-size:1.4rem;margin-bottom:0.5rem}
+.btn-run{display:flex;align-items:center;gap:0.5rem;background:var(--accent);color:#000;border:none;border-radius:7px;
+  padding:0.65rem 1.6rem;font-family:var(--fd);font-size:0.85rem;font-weight:700;cursor:pointer;
+  letter-spacing:0.03em;transition:opacity 0.15s,transform 0.1s;margin-bottom:2rem}
+.btn-run:hover{opacity:0.88;transform:translateY(-1px)}
+.btn-run:disabled{opacity:0.3;cursor:not-allowed;transform:none}
+.stats-bar{display:flex;gap:1.5rem;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:1rem 1.5rem;margin-bottom:1.5rem;font-size:0.72rem}
+.stat{display:flex;flex-direction:column;gap:0.2rem}
+.stat .sk{color:var(--muted);letter-spacing:0.08em;text-transform:uppercase}
+.stat .sv{color:var(--accent);font-weight:600;font-size:0.85rem}
+.dim-selector{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.2rem;align-items:center}
+.dim-btn{padding:0.3rem 0.85rem;border-radius:5px;border:1px solid var(--border);background:var(--surface);
+  color:var(--muted);font-family:var(--fm);font-size:0.72rem;cursor:pointer;transition:all 0.15s}
+.dim-btn.active{color:#000;font-weight:600}
+.chart-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1.5rem}
+.chart-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem}
+.chart-panel-header h2{font-family:var(--fd);font-size:0.75rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted)}
+.chart-wrap{position:relative;width:100%}
+.export-btns{display:flex;gap:0.5rem}
+.btn-exp{background:transparent;border:1px solid var(--border);border-radius:6px;padding:0.3rem 0.85rem;
+  font-family:var(--fm);font-size:0.68rem;color:var(--muted);cursor:pointer;transition:all 0.15s;white-space:nowrap}
+.btn-exp:hover{border-color:var(--accent2);color:var(--accent2)}
+.btn-exp.pub{border-color:rgba(0,229,160,0.4);color:var(--accent)}
+.btn-exp.pub:hover{background:rgba(0,229,160,0.08)}
+/* Inline settings panel */
+.pub-settings{background:var(--surface2);border:1px solid rgba(0,229,160,0.2);border-radius:10px;
+  padding:1.2rem 1.4rem;margin-top:0.8rem;display:none}
+.pub-settings.open{display:block}
+.pub-settings h3{font-family:var(--fd);font-size:0.8rem;font-weight:700;color:var(--accent);margin-bottom:1rem;
+  display:flex;align-items:center;justify-content:space-between}
+.pub-settings h3 button{background:transparent;border:none;color:var(--muted);font-size:1rem;cursor:pointer;
+  line-height:1;padding:0.1rem 0.3rem;border-radius:4px}
+.pub-settings h3 button:hover{color:var(--text);background:rgba(255,255,255,0.08)}
+.ps-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem 1rem;margin-bottom:0.8rem}
+.ps-field{display:flex;flex-direction:column;gap:0.25rem}
+.ps-field.full{grid-column:1/-1}
+.ps-field label{font-size:0.65rem;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase}
+.ps-field input,.ps-field select{background:#0a0c10;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
+  color:var(--text);padding:0.35rem 0.6rem;font-family:var(--fm);font-size:0.78rem;width:100%}
+.ps-field input:focus,.ps-field select:focus{outline:none;border-color:var(--accent)}
+.ps-row{display:flex;gap:0.4rem;align-items:center}
+.ps-row input{flex:1}
+.ps-row span{color:var(--muted);font-size:0.8rem;flex-shrink:0}
+.ps-tip{font-size:0.63rem;color:var(--muted);margin-top:0.2rem}
+.btn-do-export{background:var(--accent);color:#000;border:none;border-radius:6px;padding:0.5rem 1.4rem;
+  font-family:var(--fd);font-size:0.8rem;font-weight:700;cursor:pointer;transition:opacity 0.15s}
+.btn-do-export:hover{opacity:0.85}
+.dl-section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.2rem 1.5rem;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+.dl-info{font-size:0.75rem;color:var(--muted)}
+.dl-info strong{color:var(--text)}
+.btn-dl{background:transparent;color:var(--accent2);border:1px solid var(--accent2);border-radius:7px;
+  padding:0.55rem 1.2rem;font-family:var(--fm);font-size:0.75rem;cursor:pointer;transition:all 0.15s}
+.btn-dl:hover{background:rgba(91,143,255,0.1)}
+.hidden{display:none}
+#progress-msg{font-size:0.75rem;color:var(--accent4);margin-bottom:1rem;min-height:1.2em}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>TRAJECTORY VIZ</h1>
+    <span>路径点 · 时间插值 · 1ms 重采样 · 期刊图导出</span>
+  </header>
+
+  <div class="upload-grid">
+    <div class="upload-box" id="box-pos">
+      <input type="file" id="file-pos" accept=".txt,.csv">
+      <div class="ub-icon">📍</div>
+      <div class="ub-label">路径点坐标文件</div>
+      <div class="ub-name" id="name-pos">点击或拖拽 .txt / .csv</div>
+    </div>
+    <div class="upload-box" id="box-time">
+      <input type="file" id="file-time" accept=".txt,.csv">
+      <div class="ub-icon">⏱</div>
+      <div class="ub-label">时间片段序列文件</div>
+      <div class="ub-name" id="name-time">点击或拖拽 .txt / .csv</div>
+    </div>
+  </div>
+
+  <button class="btn-run hidden" id="btn-run">▶ 解析 &amp; 可视化</button>
+  <div id="progress-msg"></div>
+
+  <div class="stats-bar hidden" id="stats-bar">
+    <div class="stat"><span class="sk">路径点数</span><span class="sv" id="st-pts">—</span></div>
+    <div class="stat"><span class="sk">维度</span><span class="sv" id="st-dim">—</span></div>
+    <div class="stat"><span class="sk">总时长</span><span class="sv" id="st-dur">—</span></div>
+    <div class="stat"><span class="sk">时间步数</span><span class="sv" id="st-steps">—</span></div>
+    <div class="stat"><span class="sk">插值后点数</span><span class="sv" id="st-ipts">—</span></div>
+    <div class="stat"><span class="sk">采样率</span><span class="sv">1 ms</span></div>
+  </div>
+
+  <div class="dim-selector hidden" id="dim-selector"></div>
+
+  <!-- Original chart -->
+  <div class="chart-panel hidden" id="chart-orig-panel">
+    <div class="chart-panel-header">
+      <h2>原始路径点曲线</h2>
+      <div class="export-btns">
+        <button class="btn-exp" id="btn-orig-dark">⬇ PNG 深色</button>
+        <button class="btn-exp pub" id="btn-orig-pub">⬇ PNG 期刊白底</button>
+      </div>
+    </div>
+    <div class="chart-wrap" style="height:320px"><canvas id="chart-orig"></canvas></div>
+    <!-- Inline settings panel for orig -->
+    <div class="pub-settings" id="ps-orig">
+      <h3>期刊图导出设置
+        <button id="ps-orig-close" title="关闭">✕</button>
+      </h3>
+      <div class="ps-grid">
+        <div class="ps-field full">
+          <label>图表标题（可留空）</label>
+          <input type="text" id="po-title" placeholder="e.g. Joint trajectory comparison">
+        </div>
+        <div class="ps-field">
+          <label>X 轴标签</label>
+          <input type="text" id="po-xlabel" value="Time (s)">
+        </div>
+        <div class="ps-field">
+          <label>Y 轴标签</label>
+          <input type="text" id="po-ylabel" value="Position (rad)">
+        </div>
+        <div class="ps-field full">
+          <label>分辨率（宽 × 高 px）</label>
+          <div class="ps-row">
+            <input type="number" id="po-w" value="2100">
+            <span>×</span>
+            <input type="number" id="po-h" value="1400">
+          </div>
+          <p class="ps-tip">推荐 2100×1400（300DPI双栏）或 3200×2000（单栏大图）</p>
+        </div>
+        <div class="ps-field">
+          <label>线条粗细 px</label>
+          <input type="number" id="po-lw" value="2.5" step="0.5" min="0.5" max="10">
+        </div>
+        <div class="ps-field">
+          <label>字体大小 px</label>
+          <input type="number" id="po-fs" value="20" step="1" min="8" max="60">
+        </div>
+        <div class="ps-field full">
+          <label>图例位置</label>
+          <select id="po-legend">
+            <option value="top">上方</option>
+            <option value="bottom">下方</option>
+            <option value="right">右侧</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-do-export" id="btn-orig-export">导出 PNG</button>
+    </div>
+  </div>
+
+  <!-- Interpolated chart -->
+  <div class="chart-panel hidden" id="chart-interp-panel">
+    <div class="chart-panel-header">
+      <h2>1ms 插值后路径点曲线</h2>
+      <div class="export-btns">
+        <button class="btn-exp" id="btn-interp-dark">⬇ PNG 深色</button>
+        <button class="btn-exp pub" id="btn-interp-pub">⬇ PNG 期刊白底</button>
+      </div>
+    </div>
+    <div class="chart-wrap" style="height:320px"><canvas id="chart-interp"></canvas></div>
+    <!-- Inline settings panel for interp -->
+    <div class="pub-settings" id="ps-interp">
+      <h3>期刊图导出设置
+        <button id="ps-interp-close" title="关闭">✕</button>
+      </h3>
+      <div class="ps-grid">
+        <div class="ps-field full">
+          <label>图表标题（可留空）</label>
+          <input type="text" id="pi-title" placeholder="e.g. Interpolated joint trajectory">
+        </div>
+        <div class="ps-field">
+          <label>X 轴标签</label>
+          <input type="text" id="pi-xlabel" value="Time (s)">
+        </div>
+        <div class="ps-field">
+          <label>Y 轴标签</label>
+          <input type="text" id="pi-ylabel" value="Position (rad)">
+        </div>
+        <div class="ps-field full">
+          <label>分辨率（宽 × 高 px）</label>
+          <div class="ps-row">
+            <input type="number" id="pi-w" value="2100">
+            <span>×</span>
+            <input type="number" id="pi-h" value="1400">
+          </div>
+          <p class="ps-tip">推荐 2100×1400（300DPI双栏）或 3200×2000（单栏大图）</p>
+        </div>
+        <div class="ps-field">
+          <label>线条粗细 px</label>
+          <input type="number" id="pi-lw" value="2.5" step="0.5" min="0.5" max="10">
+        </div>
+        <div class="ps-field">
+          <label>字体大小 px</label>
+          <input type="number" id="pi-fs" value="20" step="1" min="8" max="60">
+        </div>
+        <div class="ps-field full">
+          <label>图例位置</label>
+          <select id="pi-legend">
+            <option value="top">上方</option>
+            <option value="bottom">下方</option>
+            <option value="right">右侧</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-do-export" id="btn-interp-export">导出 PNG</button>
+    </div>
+  </div>
+
+  <div class="dl-section hidden" id="dl-section">
+    <div class="dl-info"><strong>插值结果</strong> — CSV 格式，含时间列 + 各维度坐标列</div>
+    <button class="btn-dl" id="btn-dl">⬇ 下载插值 CSV</button>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+  const COLORS_DARK = ['#00e5a0','#5b8fff','#ff6b6b','#ffb347','#c084fc','#67e8f9','#f9a8d4','#86efac'];
+  const COLORS_PUB  = ['#0072B2','#D55E00','#009E73','#CC79A7','#E69F00','#56B4E9','#000000','#F0E442'];
+  const DASH_PUB    = [[],[6,3],[2,3],[8,3,2,3],[4,2,2,2],[10,4],[3,3],[6,2,2,2]];
+
+  let posData=null, timeData=null;
+  let chartOrig=null, chartInterp=null;
+  let interpResult=null, activeDims=new Set();
+  let cumTimeG=[], ptsG=[], nDimG=0;
+
+  // ——— File upload ———
+  function setupUpload(inputId, boxId, nameId, onLoad) {
+    const inp = document.getElementById(inputId);
+    const box = document.getElementById(boxId);
+    const nm  = document.getElementById(nameId);
+    inp.addEventListener('change', function(e) {
+      var f = e.target.files[0]; if (!f) return;
+      nm.textContent = f.name; readFile(f, onLoad);
+    });
+    box.addEventListener('dragover', function(e) { e.preventDefault(); box.classList.add('drag'); });
+    box.addEventListener('dragleave', function() { box.classList.remove('drag'); });
+    box.addEventListener('drop', function(e) {
+      e.preventDefault(); box.classList.remove('drag');
+      var f = e.dataTransfer.files[0]; if (!f) return;
+      nm.textContent = f.name; readFile(f, onLoad);
+    });
+  }
+
+  function readFile(f, cb) {
+    var r = new FileReader();
+    r.onload = function(e) { cb(e.target.result); };
+    r.readAsText(f);
+  }
+
+  function parseLines(text) {
+    return text.trim().split('\n')
+      .map(function(l){ return l.trim(); }).filter(function(l){ return l.length > 0; })
+      .map(function(l){ return l.split(/[\s,;]+/).map(Number).filter(function(v){ return !isNaN(v); }); })
+      .filter(function(r){ return r.length > 0; });
+  }
+
+  setupUpload('file-pos','box-pos','name-pos', function(t){ posData=parseLines(t); checkReady(); });
+  setupUpload('file-time','box-time','name-time', function(t){ timeData=parseLines(t).map(function(r){ return r[0]; }); checkReady(); });
+
+  function checkReady() {
+    var btn = document.getElementById('btn-run');
+    if (posData && timeData) {
+      btn.classList.remove('hidden');
+      btn.disabled = false;
+    }
+  }
+
+  // ——— Run ———
+  document.getElementById('btn-run').addEventListener('click', function() {
+    var msg = document.getElementById('progress-msg');
+    msg.textContent = '解析中…';
+    setTimeout(function() {
+      try { process(); msg.textContent = '✓ 完成'; }
+      catch(e) { msg.textContent = '❌ ' + e.message; console.error(e); }
+    }, 20);
+  });
+
+  function process() {
+    var pts = posData, times = timeData;
+    var nDim = pts[0].length, nPts = pts.length;
+    var dtArray;
+    if (times.length === nPts) {
+      dtArray = times;
+    } else if (times.length % nPts === 0) {
+      var s = times.length / nPts;
+      dtArray = times.filter(function(_,i){ return i % s === 0; });
+    } else {
+      dtArray = times.slice(0, nPts);
+    }
+
+    var cumTime = [0];
+    for (var i = 1; i < nPts; i++) cumTime.push(cumTime[i-1] + (dtArray[i] || 0));
+    cumTimeG = cumTime; ptsG = pts; nDimG = nDim;
+
+    var totalDur = cumTime[cumTime.length - 1];
+    var nInterp  = Math.floor(totalDur * 1000) + 1;
+
+    document.getElementById('st-pts').textContent   = nPts;
+    document.getElementById('st-dim').textContent   = nDim;
+    document.getElementById('st-dur').textContent   = totalDur.toFixed(3) + ' s';
+    document.getElementById('st-steps').textContent = dtArray.length;
+    document.getElementById('st-ipts').textContent  = nInterp.toLocaleString();
+    document.getElementById('stats-bar').classList.remove('hidden');
+
+    activeDims = new Set(Array.from({length: nDim}, function(_,d){ return d; }));
+
+    // Dim selector
+    var sel = document.getElementById('dim-selector');
+    sel.innerHTML = '<span style="font-size:0.7rem;color:var(--muted);margin-right:0.3rem">显示维度:</span>';
+    for (var d = 0; d < nDim; d++) {
+      (function(dd) {
+        var btn = document.createElement('button');
+        btn.className = 'dim-btn active';
+        btn.textContent = 'J' + (dd + 1);
+        btn.style.background = COLORS_DARK[dd % COLORS_DARK.length];
+        btn.style.borderColor = COLORS_DARK[dd % COLORS_DARK.length];
+        btn.style.color = '#000';
+        btn.addEventListener('click', function() {
+          if (activeDims.has(dd)) {
+            activeDims.delete(dd); btn.classList.remove('active');
+            btn.style.background = ''; btn.style.color = 'var(--muted)';
+          } else {
+            activeDims.add(dd); btn.classList.add('active');
+            btn.style.background = COLORS_DARK[dd % COLORS_DARK.length]; btn.style.color = '#000';
+          }
+          redrawCharts();
+        });
+        sel.appendChild(btn);
+      })(d);
+    }
+    sel.classList.remove('hidden');
+
+    // 1ms interpolation
+    var interpTime = Array.from({length: nInterp}, function(_,i){ return i * 0.001; });
+    var interpPts  = Array.from({length: nDim},   function()    { return new Float64Array(nInterp); });
+    for (var i = 0; i < nInterp; i++) {
+      var t = interpTime[i], lo = 0, hi = nPts - 1;
+      while (lo < hi - 1) { var mid = (lo + hi) >> 1; if (cumTime[mid] <= t) lo = mid; else hi = mid; }
+      var t0 = cumTime[lo], t1 = cumTime[hi];
+      var alpha = t1 > t0 ? (t - t0) / (t1 - t0) : 0;
+      for (var dd = 0; dd < nDim; dd++) interpPts[dd][i] = pts[lo][dd] + alpha * (pts[hi][dd] - pts[lo][dd]);
+    }
+    interpResult = {interpTime: interpTime, interpPts: interpPts, nDim: nDim};
+
+    drawCharts(cumTime, pts, interpTime, interpPts, nDim);
+    document.getElementById('dl-section').classList.remove('hidden');
+  }
+
+  // ——— Charts ———
+  function darkOpts() {
+    return {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: { mode:'index', intersect:false, backgroundColor:'#181c24', titleColor:'#6b7280', bodyColor:'#e8eaf0', borderColor:'rgba(255,255,255,0.07)', borderWidth:1,
+          callbacks: { label: function(c){ return ' ' + c.dataset.label + ': ' + c.parsed.y.toFixed(4); } }
+        }
+      },
+      scales: {
+        x: { type:'linear', title:{display:true,text:'Time (s)',color:'#6b7280',font:{size:10}}, grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#6b7280',font:{size:10},maxTicksLimit:10} },
+        y: { title:{display:true,text:'Position',color:'#6b7280',font:{size:10}}, grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#6b7280',font:{size:10}} }
+      }
+    };
+  }
+
+  function origDatasets() {
+    var origArr = Array.from({length: nDimG}, function(_,d){ return ptsG.map(function(r){ return r[d]; }); });
+    return Array.from(activeDims).sort().map(function(d) {
+      return { label:'J'+(d+1), data: cumTimeG.map(function(t,j){ return {x:t, y:origArr[d][j]}; }),
+        borderColor:COLORS_DARK[d%COLORS_DARK.length], backgroundColor:'transparent',
+        borderWidth:1.5, pointRadius:3, pointHoverRadius:5, tension:0.3, fill:false };
+    });
+  }
+
+  function interpDatasets() {
+    var ds = Math.max(1, Math.floor(interpResult.interpTime.length / 2000));
+    return Array.from(activeDims).sort().map(function(d) {
+      return { label:'J'+(d+1),
+        data: Array.from({length: Math.ceil(interpResult.interpPts[d].length/ds)}, function(_,k){ return {x:interpResult.interpTime[k*ds], y:interpResult.interpPts[d][k*ds]}; }),
+        borderColor:COLORS_DARK[d%COLORS_DARK.length], backgroundColor:'transparent',
+        borderWidth:1.5, pointRadius:0, tension:0.3, fill:false };
+    });
+  }
+
+  function drawCharts(cumTime, pts, interpTime, interpPts, nDim) {
+    if (chartOrig)   chartOrig.destroy();
+    if (chartInterp) chartInterp.destroy();
+    chartOrig   = new Chart(document.getElementById('chart-orig'),   {type:'line', data:{datasets:origDatasets()},   options:darkOpts()});
+    chartInterp = new Chart(document.getElementById('chart-interp'), {type:'line', data:{datasets:interpDatasets()}, options:darkOpts()});
+    document.getElementById('chart-orig-panel').classList.remove('hidden');
+    document.getElementById('chart-interp-panel').classList.remove('hidden');
+  }
+
+  function redrawCharts() {
+    chartOrig.data.datasets   = origDatasets();   chartOrig.update('none');
+    chartInterp.data.datasets = interpDatasets(); chartInterp.update('none');
+  }
+
+  // ——— Settings panel toggle ———
+  document.getElementById('btn-orig-pub').addEventListener('click', function() {
+    var ps = document.getElementById('ps-orig');
+    ps.classList.toggle('open');
+  });
+  document.getElementById('btn-interp-pub').addEventListener('click', function() {
+    var ps = document.getElementById('ps-interp');
+    ps.classList.toggle('open');
+  });
+  document.getElementById('ps-orig-close').addEventListener('click', function() {
+    document.getElementById('ps-orig').classList.remove('open');
+  });
+  document.getElementById('ps-interp-close').addEventListener('click', function() {
+    document.getElementById('ps-interp').classList.remove('open');
+  });
+
+  // ——— Dark export ———
+  document.getElementById('btn-orig-dark').addEventListener('click', function() {
+    var c = document.getElementById('chart-orig');
+    var a = document.createElement('a'); a.download='trajectory_original.png'; a.href=c.toDataURL('image/png');
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  });
+  document.getElementById('btn-interp-dark').addEventListener('click', function() {
+    var c = document.getElementById('chart-interp');
+    var a = document.createElement('a'); a.download='trajectory_interpolated.png'; a.href=c.toDataURL('image/png');
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  });
+
+  // ——— Publication export ———
+  function getOpts(prefix) {
+    return {
+      w:       parseInt(document.getElementById(prefix+'-w').value)      || 2100,
+      h:       parseInt(document.getElementById(prefix+'-h').value)      || 1400,
+      lw:      parseFloat(document.getElementById(prefix+'-lw').value)   || 2.5,
+      fs:      parseInt(document.getElementById(prefix+'-fs').value)     || 20,
+      legend:  document.getElementById(prefix+'-legend').value,
+      title:   document.getElementById(prefix+'-title').value.trim(),
+      xlabel:  document.getElementById(prefix+'-xlabel').value  || 'Time (s)',
+      ylabel:  document.getElementById(prefix+'-ylabel').value  || 'Position (rad)',
+    };
+  }
+
+  document.getElementById('btn-orig-export').addEventListener('click', function() {
+    renderPub('orig', getOpts('po'));
+  });
+  document.getElementById('btn-interp-export').addEventListener('click', function() {
+    renderPub('interp', getOpts('pi'));
+  });
+
+  function renderPub(which, o) {
+    if (!interpResult) return;
+    var isOrig = which === 'orig';
+    var dims = Array.from(activeDims).sort();
+    var datasets;
+
+    if (isOrig) {
+      var origArr = Array.from({length: nDimG}, function(_,d){ return ptsG.map(function(r){ return r[d]; }); });
+      datasets = dims.map(function(d) {
+        return { label:'J'+(d+1), data: cumTimeG.map(function(t,j){ return {x:t,y:origArr[d][j]}; }),
+          borderColor:COLORS_PUB[d%COLORS_PUB.length], backgroundColor:'transparent',
+          borderWidth:o.lw, borderDash:DASH_PUB[d%DASH_PUB.length],
+          pointRadius:Math.round(o.lw*2), tension:0.3, fill:false };
+      });
+    } else {
+      var ds2 = Math.max(1, Math.floor(interpResult.interpTime.length / 3000));
+      datasets = dims.map(function(d) {
+        return { label:'J'+(d+1),
+          data: Array.from({length:Math.ceil(interpResult.interpPts[d].length/ds2)}, function(_,k){ return {x:interpResult.interpTime[k*ds2],y:interpResult.interpPts[d][k*ds2]}; }),
+          borderColor:COLORS_PUB[d%COLORS_PUB.length], backgroundColor:'transparent',
+          borderWidth:o.lw, borderDash:DASH_PUB[d%DASH_PUB.length],
+          pointRadius:0, tension:0.3, fill:false };
+      });
+    }
+
+    var off = document.createElement('canvas');
+    off.width = o.w; off.height = o.h;
+    var ctx = off.getContext('2d');
+
+    var whiteBg = {
+      id: 'whiteBg',
+      beforeDraw: function(ch) {
+        var c = ch.ctx; c.save(); c.globalCompositeOperation='destination-over';
+        c.fillStyle='#ffffff'; c.fillRect(0,0,ch.width,ch.height); c.restore();
+      }
+    };
+
+    var pubChart = new Chart(ctx, {
+      type: 'line',
+      data: {datasets: datasets},
+      options: {
+        responsive: false, animation: false,
+        layout: { padding: { top: o.title ? o.fs*2.8 : o.fs*1.2, right: o.fs*2, bottom: o.fs*1.2, left: o.fs*0.5 } },
+        plugins: {
+          whiteBg: whiteBg,
+          legend: {
+            display: true, position: o.legend,
+            labels: { color:'#111', font:{size:o.fs,family:'Arial',weight:'bold'}, padding:Math.round(o.fs*1.2), usePointStyle:true, pointStyleWidth:o.lw*10,
+              generateLabels: function(ch) {
+                return ch.data.datasets.map(function(ds,i){
+                  return { text:ds.label, fillStyle:ds.borderColor, strokeStyle:ds.borderColor, lineWidth:o.lw, lineDash:ds.borderDash||[], pointStyle:'line', hidden:false, datasetIndex:i };
+                });
+              }
+            }
+          },
+          title: { display:!!o.title, text:o.title, color:'#111', font:{size:Math.round(o.fs*1.4),family:'Arial',weight:'bold'}, padding:{bottom:Math.round(o.fs*0.8)} },
+          tooltip: {enabled: false}
+        },
+        scales: {
+          x: { type:'linear', title:{display:true,text:o.xlabel,color:'#111',font:{size:o.fs,family:'Arial',weight:'bold'},padding:{top:Math.round(o.fs*0.5)}},
+            grid:{color:'rgba(0,0,0,0.08)',lineWidth:1}, ticks:{color:'#333',font:{size:Math.round(o.fs*0.85),family:'Arial'},maxTicksLimit:10}, border:{color:'#333',width:Math.round(o.lw*0.8)} },
+          y: { title:{display:true,text:o.ylabel,color:'#111',font:{size:o.fs,family:'Arial',weight:'bold'},padding:{bottom:Math.round(o.fs*0.5)}},
+            grid:{color:'rgba(0,0,0,0.08)',lineWidth:1}, ticks:{color:'#333',font:{size:Math.round(o.fs*0.85),family:'Arial'}}, border:{color:'#333',width:Math.round(o.lw*0.8)} }
+        }
+      },
+      plugins: [whiteBg]
+    });
+
+    setTimeout(function() {
+      var a = document.createElement('a');
+      a.download = 'trajectory_' + which + '_publication.png';
+      a.href = off.toDataURL('image/png', 1.0);
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      pubChart.destroy();
+    }, 300);
+  }
+
+  // ——— CSV download ———
+  document.getElementById('btn-dl').addEventListener('click', function() {
+    if (!interpResult) return;
+    var interpTime = interpResult.interpTime;
+    var interpPts  = interpResult.interpPts;
+    var nDim       = interpResult.nDim;
+    var rows = ['time_s,' + Array.from({length:nDim}, function(_,d){ return 'J'+(d+1); }).join(',')];
+    for (var i = 0; i < interpTime.length; i++) {
+      var row = interpTime[i].toFixed(3);
+      for (var d = 0; d < nDim; d++) row += ',' + interpPts[d][i].toFixed(6);
+      rows.push(row);
+    }
+    var blob = new Blob([rows.join('\r\n')], {type:'text/csv;charset=utf-8;'});
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href = url; a.download = 'trajectory_1ms.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  });
+
+}); // end DOMContentLoaded
+</script>
+</body>
+</html>
