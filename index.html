@@ -107,6 +107,24 @@ header span{font-size:0.7rem;color:var(--muted);letter-spacing:0.1em;text-transf
 .stats-table tr:hover td{background:rgba(255,255,255,0.02)}
 .stats-table .td-label{color:var(--accent4);font-weight:600}
 .charts-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+/* ── Collapsible stats ── */
+.stats-group{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:1rem;overflow:hidden}
+.stats-group-header{display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1.2rem;cursor:pointer;user-select:none;transition:background 0.15s}
+.stats-group-header:hover{background:var(--surface2)}
+.stats-group-title{font-family:var(--fd);font-size:0.8rem;font-weight:700;color:var(--accent4);letter-spacing:0.06em;text-transform:uppercase}
+.stats-group-arrow{font-size:0.75rem;color:var(--muted);transition:transform 0.2s;display:inline-block}
+.stats-group.open .stats-group-arrow{transform:rotate(180deg)}
+.stats-group-body{display:none;padding:0 1.2rem 1rem}
+.stats-group.open .stats-group-body{display:block}
+.stats-table-wrap{overflow-x:auto}
+.stats-table{width:100%;border-collapse:collapse;font-size:0.72rem}
+.stats-table th{background:var(--surface2);color:var(--accent);padding:0.45rem 0.8rem;text-align:left;font-weight:600;letter-spacing:0.06em;border-bottom:1px solid var(--border);white-space:nowrap}
+.stats-table td{padding:0.4rem 0.8rem;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--text);white-space:nowrap}
+.stats-table tr:last-child td{border-bottom:none}
+.stats-table tr:hover td{background:rgba(255,255,255,0.02)}
+.td-file{color:var(--accent2);font-weight:600}.td-dim{color:var(--muted)}
+.td-sep td{background:rgba(255,255,255,0.03)!important;font-size:0.65rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;padding:0.3rem 0.8rem}
+
 .charts-grid-4{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 @media(max-width:900px){.charts-grid-2,.charts-grid-4{grid-template-columns:1fr}}
 .section-title{font-family:var(--fd);font-size:0.8rem;font-weight:700;color:var(--accent4);
@@ -263,16 +281,6 @@ function interpolate1ms(cumTime, pts, nDim) {
     for(var d=0;d<nDim;d++) iP[d][i]=pts[lo][d]+a*(pts[hi][d]-pts[lo][d]);
   }
   return {interpTime:iT,interpPts:iP,nDim:nDim,totalDur:totalDur};
-}
-
-// Numerical differentiation: central difference, 1ms dt
-function differentiate(arr) {
-  var n=arr.length, out=new Float64Array(n), dt=0.001;
-  if(n<2) return out;
-  out[0]=(arr[1]-arr[0])/dt;
-  out[n-1]=(arr[n-1]-arr[n-2])/dt;
-  for(var i=1;i<n-1;i++) out[i]=(arr[i+1]-arr[i-1])/(2*dt);
-  return out;
 }
 
 function computeStats(arr) {
@@ -631,33 +639,8 @@ function p2Process(loaded) {
     var ir=interpolate1ms(ct.cumTime,pts,nDim);
     if(!firstIr)firstIr=ir;
 
-    // For position/velocity files: compute accel + jerk from velocity if available
-    // For car: if carVel loaded, compute accel/jerk from velocity
-    // We'll compute derivatives from interpolated data per dimension
-    var derivs={};  // accel and jerk per dim
-    var hasVelCounterpart=false;
-    var velKey=null;
-    if(fk==='carPos') {velKey='carVel';hasVelCounterpart=true;}
-    // We always compute from the interpolated signal itself (pos→vel→accel→jerk)
-    // compute vel, accel, jerk from pos for position files; for velocity files compute accel, jerk
-    var signals={}; // {vel, accel, jerk} arrays per dim
-    for(var d=0;d<nDim;d++){
-      if(fk==='carPos'||fk==='manPos'){
-        // pos already; compute vel, accel, jerk numerically
-        var vel=differentiate(ir.interpPts[d]);
-        var acc=differentiate(vel);
-        var jrk=differentiate(acc);
-        signals[d]={vel:vel,accel:acc,jerk:jrk};
-      } else if(fk==='carVel'||fk==='manVel'){
-        var acc2=differentiate(ir.interpPts[d]);
-        var jrk2=differentiate(acc2);
-        signals[d]={accel:acc2,jerk:jrk2};
-      }
-    }
-
     p2.results[fk]={ir:ir,cumTime:ct.cumTime,pts:pts,nDim:nDim,
-      activeDims:new Set(Array.from({length:nDim},function(_,d2){return d2;})),
-      signals:signals};
+      activeDims:new Set(Array.from({length:nDim},function(_,d2){return d2;}))};
 
     // ─── Section title ───
     var sec=document.createElement('div');
@@ -677,37 +660,7 @@ function p2Process(loaded) {
     grid.appendChild(origEl);grid.appendChild(interpEl);
     sec.appendChild(grid);
 
-    // ─── Derivative charts (4 charts: pos/vel/accel/jerk) for position files ───
-    if(fk==='carPos'||fk==='manPos') {
-      var derivTitle=document.createElement('div');
-      derivTitle.style.cssText='font-size:0.7rem;color:var(--muted);margin:0.8rem 0 0.5rem;letter-spacing:0.08em;text-transform:uppercase';
-      derivTitle.textContent='导数分析 — 位置 / 速度 / 加速度 / 加加速度';
-      sec.appendChild(derivTitle);
 
-      var dgrid=document.createElement('div');dgrid.className='charts-grid-4';
-      var derivDefs=[
-        {key:'pos',  label:FILE_LABELS[fk]+' 位置',    ylabel:FILE_YLABELS[fk]},
-        {key:'vel',  label:FILE_LABELS[fk]+' 速度',    ylabel:'Velocity'},
-        {key:'accel',label:FILE_LABELS[fk]+' 加速度',  ylabel:'Acceleration'},
-        {key:'jerk', label:FILE_LABELS[fk]+' 加加速度',ylabel:'Jerk'},
-      ];
-      derivDefs.forEach(function(dd){
-        var el=document.createElement('div');el.className='chart-panel';
-        var cid='p2c-'+fk+'-'+dd.key;
-        el.innerHTML=makePanelHTML(dd.label,cid,'p2d-'+fk+'-'+dd.key,'p2p-'+fk+'-'+dd.key,'p2ps-'+fk+'-'+dd.key,'p2psc-'+fk+'-'+dd.key,'p2pdrv'+fk+dd.key,dd.ylabel);
-        dgrid.appendChild(el);
-      });
-      sec.appendChild(dgrid);
-
-      // Stats table
-      var statsDiv=document.createElement('div');statsDiv.className='stats-table-wrap';
-      var tbl=document.createElement('table');tbl.className='stats-table';
-      var thead=document.createElement('thead');
-      thead.innerHTML='<tr><th>信号</th><th>维度</th><th>最大值</th><th>最小值</th><th>均值</th></tr>';
-      tbl.appendChild(thead);
-      var tbody=document.createElement('tbody');tbody.id='p2-stats-tbody-'+fk;
-      tbl.appendChild(tbody);statsDiv.appendChild(tbl);sec.appendChild(statsDiv);
-    }
 
     container.appendChild(sec);
 
@@ -732,40 +685,55 @@ function p2Process(loaded) {
       setupZoom('p2c-'+ffk+'-orig',FILE_LABELS[ffk]+' 原始',function(){return p2OrigDS(ffk);},function(){return darkOpts('Time (s)',FILE_YLABELS[ffk]);});
       setupZoom('p2c-'+ffk+'-interp',FILE_LABELS[ffk]+' 插值',function(){var ds3=Math.max(1,Math.floor(rr.ir.interpTime.length/2000));return p2InterpDS(ffk,ds3);},function(){return darkOpts('Time (s)',FILE_YLABELS[ffk]);});
 
-      // Derivatives
-      if(ffk==='carPos'||ffk==='manPos'){
-        var derivKeys=['pos','vel','accel','jerk'];
-        var derivYlabels={pos:FILE_YLABELS[ffk],vel:'Velocity',accel:'Acceleration',jerk:'Jerk'};
-        derivKeys.forEach(function(dk){
-          p2.charts['p2c-'+ffk+'-'+dk]=new Chart(document.getElementById('p2c-'+ffk+'-'+dk),{
-            type:'line',data:{datasets:p2DerivDS(ffk,dk,ds2)},options:darkOpts('Time (s)',derivYlabels[dk])});
-          wirePanelToggle('p2p-'+ffk+'-'+dk,'p2ps-'+ffk+'-'+dk,'p2psc-'+ffk+'-'+dk);
-          setupDarkBtn('p2d-'+ffk+'-'+dk,'p2c-'+ffk+'-'+dk,FILE_LABELS[ffk]+'_'+dk+'_dark.png');
-          setupPubBtnDeriv('p2pdrv'+ffk+dk+'-export-btn','p2pdrv'+ffk+dk,ffk,dk,derivYlabels[dk]);
-          setupZoom('p2c-'+ffk+'-'+dk,FILE_LABELS[ffk]+' '+dk,function(ddk){return function(){return p2DerivDS(ffk,ddk,ds2);};}(dk),function(){return darkOpts('Time (s)',derivYlabels[dk]);});
-        });
-
-        // Fill stats table
-        var tbody2=document.getElementById('p2-stats-tbody-'+ffk);
-        if(tbody2){
-          tbody2.innerHTML='';
-          var sigLabels={pos:'位置',vel:'速度(数值微分)',accel:'加速度',jerk:'加加速度'};
-          ['pos','vel','accel','jerk'].forEach(function(sk){
-            for(var d=0;d<rr.nDim;d++){
-              var arr;
-              if(sk==='pos') arr=rr.ir.interpPts[d];
-              else arr=rr.signals[d][sk];
-              if(!arr)continue;
-              var st=computeStats(arr);
-              var tr=document.createElement('tr');
-              tr.innerHTML='<td class="td-label">'+sigLabels[sk]+'</td><td>J'+(d+1)+'</td><td>'+fmt4(st.max)+'</td><td>'+fmt4(st.min)+'</td><td>'+fmt4(st.mean)+'</td>';
-              tbody2.appendChild(tr);
-            }
-          });
-        }
-      }
     };})(fk), 50);
   });
+
+  // ── Build collapsible stats tables (car group + manipulator group) ──
+  setTimeout(function(){
+    var groups=[
+      {id:'car',  label:'Car 统计',          keys:['carPos','carVel'],  keyLabels:{carPos:'car_position',carVel:'car_velocity'}},
+      {id:'man',  label:'Manipulator 统计',   keys:['manPos','manVel'],  keyLabels:{manPos:'manipulator_position',manVel:'manipulator_velocity'}},
+    ];
+    groups.forEach(function(g){
+      var grpEl=document.createElement('div');
+      grpEl.className='stats-group';grpEl.id='stats-grp-'+g.id;
+      grpEl.innerHTML=
+        '<div class="stats-group-header" id="stats-hdr-'+g.id+'">'+
+          '<span class="stats-group-title">'+g.label+' — 插值后最大 / 最小 / 均值</span>'+
+          '<span class="stats-group-arrow">▼</span>'+
+        '</div>'+
+        '<div class="stats-group-body">'+
+          '<div class="stats-table-wrap">'+
+            '<table class="stats-table">'+
+              '<thead><tr><th>文件</th><th>维度</th><th>最大值</th><th>最小值</th><th>均值</th></tr></thead>'+
+              '<tbody id="stats-tbody-'+g.id+'"></tbody>'+
+            '</table>'+
+          '</div>'+
+        '</div>';
+      container.appendChild(grpEl);
+
+      // toggle
+      document.getElementById('stats-hdr-'+g.id).addEventListener('click',function(){
+        grpEl.classList.toggle('open');
+      });
+
+      // fill table
+      var tbody=document.getElementById('stats-tbody-'+g.id);
+      g.keys.forEach(function(fk){
+        var r=p2.results[fk];if(!r)return;
+        var sepTr=document.createElement('tr');sepTr.className='td-sep';
+        sepTr.innerHTML='<td colspan="5">'+g.keyLabels[fk]+'</td>';
+        tbody.appendChild(sepTr);
+        for(var d=0;d<r.nDim;d++){
+          var arr=r.ir.interpPts[d];
+          var st=computeStats(arr);
+          var tr=document.createElement('tr');
+          tr.innerHTML='<td class="td-file">'+g.keyLabels[fk]+'</td><td class="td-dim">J'+(d+1)+'</td><td>'+fmt4(st.max)+'</td><td>'+fmt4(st.min)+'</td><td>'+fmt4(st.mean)+'</td>';
+          tbody.appendChild(tr);
+        }
+      });
+    });
+  }, 150);
 
   if(firstIr){
     document.getElementById('p2-st-dur').textContent=firstIr.totalDur.toFixed(3)+' s';
@@ -791,28 +759,13 @@ function p2InterpDS(fk,ds){
       borderColor:COLORS_DARK[d%COLORS_DARK.length],backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.3,fill:false};
   });
 }
-function p2DerivDS(fk,derivKey,ds){
-  var r=p2.results[fk];
-  return Array.from(r.activeDims).sort().map(function(d){
-    var arr;
-    if(derivKey==='pos') arr=r.ir.interpPts[d];
-    else arr=r.signals[d][derivKey];
-    if(!arr) return {label:'J'+(d+1),data:[],borderColor:COLORS_DARK[d%COLORS_DARK.length],backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.3,fill:false};
-    return {label:'J'+(d+1),
-      data:Array.from({length:Math.ceil(arr.length/ds)},function(_,k){return{x:r.ir.interpTime[k*ds],y:arr[k*ds]};}),
-      borderColor:COLORS_DARK[d%COLORS_DARK.length],backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.3,fill:false};
-  });
-}
+
 function p2Redraw(fk){
   var r=p2.results[fk];
   var c=p2.charts['p2c-'+fk+'-orig'];if(c){c.data.datasets=p2OrigDS(fk);c.update('none');}
   var ds2=Math.max(1,Math.floor(r.ir.interpTime.length/2000));
   var ci=p2.charts['p2c-'+fk+'-interp'];if(ci){ci.data.datasets=p2InterpDS(fk,ds2);ci.update('none');}
-  if(fk==='carPos'||fk==='manPos'){
-    ['pos','vel','accel','jerk'].forEach(function(dk){
-      var cd=p2.charts['p2c-'+fk+'-'+dk];if(cd){cd.data.datasets=p2DerivDS(fk,dk,ds2);cd.update('none');}
-    });
-  }
+
 }
 
 function setupDarkBtn(btnId,canvasId,filename){
@@ -833,19 +786,7 @@ function setupPubBtn(btnId,pfx,fk,which){
     }
   });
 }
-function setupPubBtnDeriv(btnId,pfx,fk,derivKey,ylabel){
-  var btn=document.getElementById(btnId);
-  if(!btn)return;
-  btn.addEventListener('click',function(){
-    var o=getOpts(pfx);var r=p2.results[fk];
-    var ds3=Math.max(1,Math.floor(r.ir.interpTime.length/3000));
-    renderPub(function(lw,ds){return Array.from(r.activeDims).sort().map(function(d){
-      var arr=derivKey==='pos'?r.ir.interpPts[d]:r.signals[d][derivKey];
-      if(!arr)return {label:'J'+(d+1),data:[],borderColor:COLORS_PUB[d%COLORS_PUB.length],backgroundColor:'transparent',borderWidth:lw,borderDash:ds[d%ds.length],pointRadius:0,tension:0.3,fill:false};
-      return {label:'J'+(d+1),data:Array.from({length:Math.ceil(arr.length/ds3)},function(_,k){return{x:r.ir.interpTime[k*ds3],y:arr[k*ds3]};}),borderColor:COLORS_PUB[d%COLORS_PUB.length],backgroundColor:'transparent',borderWidth:lw,borderDash:ds[d%ds.length],pointRadius:0,tension:0.3,fill:false};
-    });},o,FILE_LABELS[fk]+'_'+derivKey+'_pub.png');
-  });
-}
+
 
 /* ─── ZIP download: only position files ─── */
 document.getElementById('p2-dl-zip').addEventListener('click',function(){
