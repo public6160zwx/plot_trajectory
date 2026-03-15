@@ -108,6 +108,29 @@ header span{font-size:0.7rem;color:var(--muted);letter-spacing:0.1em;text-transf
 .stats-table .td-label{color:var(--accent4);font-weight:600}
 .charts-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 /* ── Collapsible stats ── */
+
+/* ── Jerk score cards ── */
+.jerk-cards{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+.jerk-card{background:var(--surface);border-radius:14px;padding:1.5rem 2rem;position:relative;overflow:hidden;border:1px solid var(--border)}
+.jerk-card::before{content:'';position:absolute;inset:0;opacity:0.06;pointer-events:none}
+.jerk-card.car::before{background:linear-gradient(135deg,#5b8fff,transparent)}
+.jerk-card.man::before{background:linear-gradient(135deg,#00e5a0,transparent)}
+.jerk-card-label{font-size:0.65rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem}
+.jerk-card-title{font-family:var(--fd);font-size:0.95rem;font-weight:800;margin-bottom:1rem}
+.jerk-card.car .jerk-card-title{color:var(--accent2)}
+.jerk-card.man .jerk-card-title{color:var(--accent)}
+.jerk-card-score{font-family:var(--fd);font-size:2.4rem;font-weight:800;letter-spacing:-0.02em;line-height:1}
+.jerk-card.car .jerk-card-score{color:var(--accent2)}
+.jerk-card.man .jerk-card-score{color:var(--accent)}
+.jerk-card-unit{font-size:0.7rem;color:var(--muted);margin-top:0.4rem}
+.jerk-card-breakdown{margin-top:1rem;display:flex;flex-direction:column;gap:0.25rem}
+.jerk-axis-row{display:flex;align-items:center;gap:0.6rem;font-size:0.7rem}
+.jerk-axis-name{color:var(--muted);min-width:24px}
+.jerk-axis-bar-bg{flex:1;height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden}
+.jerk-axis-bar{height:100%;border-radius:2px;transition:width 0.4s}
+.jerk-card.car .jerk-axis-bar{background:var(--accent2)}
+.jerk-card.man .jerk-axis-bar{background:var(--accent)}
+.jerk-axis-val{color:var(--text);min-width:72px;text-align:right;font-family:var(--fm)}
 .stats-group{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:1rem;overflow:hidden}
 .stats-group-header{display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1.2rem;cursor:pointer;user-select:none;transition:background 0.15s}
 .stats-group-header:hover{background:var(--surface2)}
@@ -211,14 +234,19 @@ header span{font-size:0.7rem;color:var(--muted);letter-spacing:0.1em;text-transf
       <input type="file" id="p2-folder-input" webkitdirectory multiple accept=".txt,.csv">
       <div class="fd-icon">📂</div>
       <div class="fd-title">拖拽 mm_data 文件夹到此处</div>
-      <div class="fd-sub">或点击选择文件夹 · 自动识别 car/manipulator position/velocity + time_list</div>
+      <div class="fd-sub">或点击选择文件夹 · 自动识别 car/manipulator × position/velocity/acceleration/jerk + time_list</div>
     </div>
-    <div class="file-status-grid" id="p2-file-status">
+    <div class="file-status-grid" id="p2-file-status" style="grid-template-columns:repeat(5,1fr)">
       <div class="file-badge missing" id="fb-car-pos"><div class="fb-name">car_position</div><div class="fb-status">未检测到</div></div>
       <div class="file-badge missing" id="fb-car-vel"><div class="fb-name">car_velocity</div><div class="fb-status">未检测到</div></div>
+      <div class="file-badge missing" id="fb-car-acc"><div class="fb-name">car_accel</div><div class="fb-status">未检测到</div></div>
+      <div class="file-badge missing" id="fb-car-jrk"><div class="fb-name">car_jerk</div><div class="fb-status">未检测到</div></div>
+      <div class="file-badge missing" id="fb-time"><div class="fb-name">time_list</div><div class="fb-status">未检测到</div></div>
       <div class="file-badge missing" id="fb-man-pos"><div class="fb-name">manip_position</div><div class="fb-status">未检测到</div></div>
       <div class="file-badge missing" id="fb-man-vel"><div class="fb-name">manip_velocity</div><div class="fb-status">未检测到</div></div>
-      <div class="file-badge missing" id="fb-time"><div class="fb-name">time_list</div><div class="fb-status">未检测到</div></div>
+      <div class="file-badge missing" id="fb-man-acc"><div class="fb-name">manip_accel</div><div class="fb-status">未检测到</div></div>
+      <div class="file-badge missing" id="fb-man-jrk"><div class="fb-name">manip_jerk</div><div class="fb-status">未检测到</div></div>
+      <div style="display:none"></div>
     </div>
     <button class="btn-run hidden" id="p2-btn-run">▶ 解析所有文件 &amp; 生成图表</button>
     <div class="progress-msg" id="p2-msg"></div>
@@ -226,6 +254,22 @@ header span{font-size:0.7rem;color:var(--muted);letter-spacing:0.1em;text-transf
       <div class="stat"><span class="sk">总时长</span><span class="sv" id="p2-st-dur">—</span></div>
       <div class="stat"><span class="sk">插值后点数</span><span class="sv" id="p2-st-ipts">—</span></div>
       <div class="stat"><span class="sk">采样率</span><span class="sv">1 ms</span></div>
+    </div>
+    <div id="p2-jerk-cards" class="jerk-cards hidden">
+      <div class="jerk-card car" id="jerk-card-car">
+        <div class="jerk-card-label">综合冲击评估指标</div>
+        <div class="jerk-card-title">CAR 轨迹冲击</div>
+        <div class="jerk-card-score" id="jerk-score-car">—</div>
+        <div class="jerk-card-unit">RMS Jerk &nbsp;m/s³（各轴均值）</div>
+        <div class="jerk-card-breakdown" id="jerk-breakdown-car"></div>
+      </div>
+      <div class="jerk-card man" id="jerk-card-man">
+        <div class="jerk-card-label">综合冲击评估指标</div>
+        <div class="jerk-card-title">MANIPULATOR 轨迹冲击</div>
+        <div class="jerk-card-score" id="jerk-score-man">—</div>
+        <div class="jerk-card-unit">RMS Jerk &nbsp;rad/s³（各轴均值）</div>
+        <div class="jerk-card-breakdown" id="jerk-breakdown-man"></div>
+      </div>
     </div>
     <div id="p2-charts-container"></div>
     <div class="dl-section hidden" id="p2-dl">
@@ -529,8 +573,15 @@ function p1BuildCharts() {
   wirePanelToggle('p1-p-orig','p1-ps-orig','p1-psc-orig');
   wirePanelToggle('p1-p-interp','p1-ps-interp','p1-psc-interp');
 
-  document.getElementById('p1-d-orig').addEventListener('click',function(){triggerDownload(dataURLtoBlob(document.getElementById('p1-co').toDataURL('image/png')),'p1_original_dark.png');});
-  document.getElementById('p1-d-interp').addEventListener('click',function(){triggerDownload(dataURLtoBlob(document.getElementById('p1-ci').toDataURL('image/png')),'p1_interp_dark.png');});
+  document.getElementById('p1-d-orig').addEventListener('click',function(){
+    storeChartMeta('p1-co', p1OrigDS, 'Position');
+    exportDarkWithBlackBg('p1-co','p1_original_dark.png');
+  });
+  document.getElementById('p1-d-interp').addEventListener('click',function(){
+    var ds2x=Math.max(1,Math.floor(p1.interpResult.interpTime.length/2000));
+    storeChartMeta('p1-ci', function(){return p1InterpDS(ds2x);}, 'Position');
+    exportDarkWithBlackBg('p1-ci','p1_interp_dark.png');
+  });
 
   document.getElementById('p1po-export-btn').addEventListener('click',function(){
     var o=getOpts('p1po');
@@ -575,14 +626,20 @@ document.getElementById('p1-dl-time-txt').addEventListener('click',function(){if
    PAGE 2 — folder batch
 ═══════════════════════════════════════════ */
 var p2={
-  files:{carPos:null,carVel:null,manPos:null,manVel:null,time:null},
+  files:{carPos:null,carVel:null,carAcc:null,carJrk:null,manPos:null,manVel:null,manAcc:null,manJrk:null,time:null},
   results:{},charts:{}
 };
-var FILE_KEYS=['carPos','carVel','manPos','manVel'];
-var FILE_LABELS={carPos:'car_position',carVel:'car_velocity',manPos:'manipulator_position',manVel:'manipulator_velocity'};
-var FILE_YLABELS={carPos:'Position',carVel:'Velocity',manPos:'Position',manVel:'Velocity'};
-var FILE_PATTERNS={carPos:/car_position/i,carVel:/car_velocity/i,manPos:/manipulator_position/i,manVel:/manipulator_velocity/i};
-var BADGE_IDS={carPos:'fb-car-pos',carVel:'fb-car-vel',manPos:'fb-man-pos',manVel:'fb-man-vel',time:'fb-time'};
+var FILE_KEYS=['carPos','carVel','carAcc','carJrk','manPos','manVel','manAcc','manJrk'];
+var FILE_LABELS={carPos:'car_position',carVel:'car_velocity',carAcc:'car_acceleration',carJrk:'car_jerk',
+  manPos:'manipulator_position',manVel:'manipulator_velocity',manAcc:'manipulator_acceleration',manJrk:'manipulator_jerk'};
+var FILE_YLABELS={carPos:'Position',carVel:'Velocity',carAcc:'Acceleration',carJrk:'Jerk',
+  manPos:'Position',manVel:'Velocity',manAcc:'Acceleration',manJrk:'Jerk'};
+var FILE_PATTERNS={
+  carPos:/^car_position/i, carVel:/^car_velocity/i, carAcc:/^car_acceleration/i, carJrk:/^car_jerk/i,
+  manPos:/^manipulator_position/i, manVel:/^manipulator_velocity/i, manAcc:/^manipulator_acceleration/i, manJrk:/^manipulator_jerk/i
+};
+var BADGE_IDS={carPos:'fb-car-pos',carVel:'fb-car-vel',carAcc:'fb-car-acc',carJrk:'fb-car-jrk',
+  manPos:'fb-man-pos',manVel:'fb-man-vel',manAcc:'fb-man-acc',manJrk:'fb-man-jrk',time:'fb-time'};
 
 var p2Drop=document.getElementById('p2-folder-drop');
 var p2Input=document.getElementById('p2-folder-input');
@@ -592,14 +649,19 @@ p2Drop.addEventListener('dragleave',function(){p2Drop.classList.remove('drag');}
 p2Drop.addEventListener('drop',function(e){e.preventDefault();p2Drop.classList.remove('drag');handleFolder(e.dataTransfer.files);});
 
 function handleFolder(files) {
-  p2.files={carPos:null,carVel:null,manPos:null,manVel:null,time:null};
+  p2.files={carPos:null,carVel:null,carAcc:null,carJrk:null,manPos:null,manVel:null,manAcc:null,manJrk:null,time:null};
   for(var i=0;i<files.length;i++){
-    var f=files[i],base=f.name.toLowerCase().split('/').pop().split('\\').pop();
-    if(/time_list/.test(base)) p2.files.time=f;
-    else if(FILE_PATTERNS.manPos.test(base)) p2.files.manPos=f;
-    else if(FILE_PATTERNS.manVel.test(base)) p2.files.manVel=f;
-    else if(FILE_PATTERNS.carPos.test(base)) p2.files.carPos=f;
-    else if(FILE_PATTERNS.carVel.test(base)) p2.files.carVel=f;
+    var f=files[i],base=f.name.split('/').pop().split('\\').pop();
+    var bl=base.toLowerCase();
+    if(/time_list/i.test(bl)) p2.files.time=f;
+    else if(FILE_PATTERNS.manAcc.test(bl)) p2.files.manAcc=f;
+    else if(FILE_PATTERNS.manJrk.test(bl)) p2.files.manJrk=f;
+    else if(FILE_PATTERNS.manPos.test(bl)) p2.files.manPos=f;
+    else if(FILE_PATTERNS.manVel.test(bl)) p2.files.manVel=f;
+    else if(FILE_PATTERNS.carAcc.test(bl)) p2.files.carAcc=f;
+    else if(FILE_PATTERNS.carJrk.test(bl)) p2.files.carJrk=f;
+    else if(FILE_PATTERNS.carPos.test(bl)) p2.files.carPos=f;
+    else if(FILE_PATTERNS.carVel.test(bl)) p2.files.carVel=f;
   }
   updateBadges();
   var ok=p2.files.time&&FILE_KEYS.every(function(k){return !!p2.files[k];});
@@ -607,20 +669,20 @@ function handleFolder(files) {
 }
 
 function updateBadges(){
-  FILE_KEYS.forEach(function(k){
-    var el=document.getElementById(BADGE_IDS[k]);
-    if(p2.files[k]){el.classList.remove('missing');el.classList.add('ok');el.querySelector('.fb-status').textContent='✓ '+p2.files[k].name;}
+  var allKeys=FILE_KEYS.concat(['time']);
+  allKeys.forEach(function(k){
+    var bid=BADGE_IDS[k];if(!bid)return;
+    var el=document.getElementById(bid);if(!el)return;
+    var f=p2.files[k];
+    if(f){el.classList.remove('missing');el.classList.add('ok');el.querySelector('.fb-status').textContent='✓ '+f.name;}
     else{el.classList.add('missing');el.classList.remove('ok');el.querySelector('.fb-status').textContent='未检测到';}
   });
-  var tel=document.getElementById('fb-time');
-  if(p2.files.time){tel.classList.remove('missing');tel.classList.add('ok');tel.querySelector('.fb-status').textContent='✓ '+p2.files.time.name;}
-  else{tel.classList.add('missing');tel.classList.remove('ok');tel.querySelector('.fb-status').textContent='未检测到';}
 }
 
 document.getElementById('p2-btn-run').addEventListener('click',function(){
   document.getElementById('p2-msg').textContent='读取文件…';
-  var loaded={},total=5,count=0;
-  function onLoad(k,t){loaded[k]=t;count++;if(count===total){document.getElementById('p2-msg').textContent='解析中…';setTimeout(function(){try{p2Process(loaded);document.getElementById('p2-msg').textContent='✓ 完成，共8张图表';}catch(e){document.getElementById('p2-msg').textContent='❌ '+e.message;console.error(e);}},20);}}
+  var loaded={},total=9,count=0;
+  function onLoad(k,t){loaded[k]=t;count++;if(count===total){document.getElementById('p2-msg').textContent='解析中…';setTimeout(function(){try{p2Process(loaded);document.getElementById('p2-msg').textContent='✓ 完成，共 16 张图表';}catch(e){document.getElementById('p2-msg').textContent='❌ '+e.message;console.error(e);}},20);}}
   FILE_KEYS.forEach(function(k){readFile(p2.files[k],function(t){onLoad(k,t);});});
   readFile(p2.files.time,function(t){onLoad('time',t);});
 });
@@ -632,7 +694,25 @@ function p2Process(loaded) {
   var container=document.getElementById('p2-charts-container');
   container.innerHTML='';
 
+  // group divs
+  var carGroup=document.createElement('div');
+  var carGroupTitle=document.createElement('div');
+  carGroupTitle.style.cssText='font-family:var(--fd);font-size:1rem;font-weight:800;color:var(--accent2);letter-spacing:0.06em;text-transform:uppercase;margin:0.5rem 0 1rem;padding-bottom:0.5rem;border-bottom:2px solid rgba(91,143,255,0.3)';
+  carGroupTitle.textContent='CAR';
+  carGroup.appendChild(carGroupTitle);
+  container.appendChild(carGroup);
+
+  var manGroup=document.createElement('div');
+  manGroup.style.marginTop='2rem';
+  var manGroupTitle=document.createElement('div');
+  manGroupTitle.style.cssText='font-family:var(--fd);font-size:1rem;font-weight:800;color:var(--accent);letter-spacing:0.06em;text-transform:uppercase;margin:0.5rem 0 1rem;padding-bottom:0.5rem;border-bottom:2px solid rgba(0,229,160,0.3)';
+  manGroupTitle.textContent='MANIPULATOR';
+  manGroup.appendChild(manGroupTitle);
+  container.appendChild(manGroup);
+
   var firstIr=null;
+  var CAR_KEYS=['carPos','carVel','carAcc','carJrk'];
+  var MAN_KEYS=['manPos','manVel','manAcc','manJrk'];
   FILE_KEYS.forEach(function(fk){
     var pts=parseLines(loaded[fk]),nDim=pts[0].length;
     var ct=buildCumTime(pts,times);
@@ -662,7 +742,9 @@ function p2Process(loaded) {
 
 
 
-    container.appendChild(sec);
+    // append to correct group
+    if(CAR_KEYS.indexOf(fk)>=0) carGroup.appendChild(sec);
+    else manGroup.appendChild(sec);
 
     // Now draw all charts
     setTimeout((function(ffk){return function(){
@@ -677,8 +759,12 @@ function p2Process(loaded) {
 
       wirePanelToggle('p2p-'+ffk+'-orig','p2ps-'+ffk+'-orig','p2psc-'+ffk+'-orig');
       wirePanelToggle('p2p-'+ffk+'-interp','p2ps-'+ffk+'-interp','p2psc-'+ffk+'-interp');
-      setupDarkBtn('p2d-'+ffk+'-orig','p2c-'+ffk+'-orig',FILE_LABELS[ffk]+'_orig_dark.png');
-      setupDarkBtn('p2d-'+ffk+'-interp','p2c-'+ffk+'-interp',FILE_LABELS[ffk]+'_interp_dark.png');
+      (function(fk2,rr2,ds2b){
+        setupDarkBtn('p2d-'+fk2+'-orig','p2c-'+fk2+'-orig',FILE_LABELS[fk2]+'_orig_dark.png',
+          function(){return p2OrigDS(fk2);}, FILE_YLABELS[fk2]);
+        setupDarkBtn('p2d-'+fk2+'-interp','p2c-'+fk2+'-interp',FILE_LABELS[fk2]+'_interp_dark.png',
+          function(){return p2InterpDS(fk2,ds2b);}, FILE_YLABELS[fk2]);
+      })(ffk,rr,ds2);
       setupPubBtn('p2po'+ffk+'-export-btn','p2po'+ffk,ffk,'orig');
       setupPubBtn('p2pi'+ffk+'-export-btn','p2pi'+ffk,ffk,'interp');
 
@@ -691,8 +777,8 @@ function p2Process(loaded) {
   // ── Build collapsible stats tables (car group + manipulator group) ──
   setTimeout(function(){
     var groups=[
-      {id:'car',  label:'Car 统计',          keys:['carPos','carVel'],  keyLabels:{carPos:'car_position',carVel:'car_velocity'}},
-      {id:'man',  label:'Manipulator 统计',   keys:['manPos','manVel'],  keyLabels:{manPos:'manipulator_position',manVel:'manipulator_velocity'}},
+      {id:'car',label:'Car 统计',keys:['carPos','carVel','carAcc','carJrk'],keyLabels:{carPos:'car_position',carVel:'car_velocity',carAcc:'car_acceleration',carJrk:'car_jerk'}},
+      {id:'man',label:'Manipulator 统计',keys:['manPos','manVel','manAcc','manJrk'],keyLabels:{manPos:'manipulator_position',manVel:'manipulator_velocity',manAcc:'manipulator_acceleration',manJrk:'manipulator_jerk'}},
     ];
     groups.forEach(function(g){
       var grpEl=document.createElement('div');
@@ -739,6 +825,45 @@ function p2Process(loaded) {
     document.getElementById('p2-st-dur').textContent=firstIr.totalDur.toFixed(3)+' s';
     document.getElementById('p2-st-ipts').textContent=firstIr.interpTime.length.toLocaleString();
   }
+
+  // ── Jerk score cards ──
+  setTimeout(function(){
+    var jerkGroups=[
+      {key:'carJrk',  scoreId:'jerk-score-car', breakdownId:'jerk-breakdown-car', unit:'m/s³'},
+      {key:'manJrk',  scoreId:'jerk-score-man', breakdownId:'jerk-breakdown-man', unit:'rad/s³'},
+    ];
+    jerkGroups.forEach(function(g){
+      var r=p2.results[g.key]; if(!r) return;
+      var nDim=r.nDim;
+      var axisRMS=[];
+      var maxRMS=0;
+      for(var d=0;d<nDim;d++){
+        var arr=r.ir.interpPts[d], n=arr.length, sumSq=0;
+        for(var i=0;i<n;i++) sumSq+=arr[i]*arr[i];
+        var rms=Math.sqrt(sumSq/n);
+        axisRMS.push(rms);
+        if(rms>maxRMS) maxRMS=rms;
+      }
+      // overall score = mean of per-axis RMS
+      var score=axisRMS.reduce(function(a,b){return a+b;},0)/nDim;
+      document.getElementById(g.scoreId).textContent=score.toFixed(4);
+
+      // per-axis breakdown bars
+      var bd=document.getElementById(g.breakdownId);
+      bd.innerHTML='';
+      axisRMS.forEach(function(rms,d){
+        var pct=maxRMS>0?Math.round(rms/maxRMS*100):0;
+        var row=document.createElement('div'); row.className='jerk-axis-row';
+        row.innerHTML=
+          '<span class="jerk-axis-name">J'+(d+1)+'</span>'+
+          '<div class="jerk-axis-bar-bg"><div class="jerk-axis-bar" style="width:'+pct+'%"></div></div>'+
+          '<span class="jerk-axis-val">'+rms.toFixed(4)+' <span style="opacity:0.5;font-size:0.65rem">'+g.unit+'</span></span>';
+        bd.appendChild(row);
+      });
+    });
+    document.getElementById('p2-jerk-cards').classList.remove('hidden');
+  }, 200);
+
   document.getElementById('p2-stats').classList.remove('hidden');
   document.getElementById('p2-dl').classList.remove('hidden');
 }
@@ -768,9 +893,85 @@ function p2Redraw(fk){
 
 }
 
-function setupDarkBtn(btnId,canvasId,filename){
+// High-res dark export: re-renders chart off-screen at 2100×1400 with black background
+// datasetsFn and optsFn are stored per-chart so we can rebuild at any size
+var _chartMeta = {}; // canvasId -> {datasetsFn, ylabel}
+
+function storeChartMeta(canvasId, datasetsFn, ylabel) {
+  _chartMeta[canvasId] = {datasetsFn: datasetsFn, ylabel: ylabel};
+}
+
+function exportDarkWithBlackBg(canvasId, filename) {
+  var W=2100, H=1400;
+  var meta = _chartMeta[canvasId];
+  var off = document.createElement('canvas'); off.width=W; off.height=H;
+  var ctx = off.getContext('2d');
+  // black bg
+  ctx.fillStyle='#000000'; ctx.fillRect(0,0,W,H);
+
+  var datasets = meta ? meta.datasetsFn() : [];
+  var ylabel   = meta ? (meta.ylabel||'Value') : 'Value';
+
+  var blackBgPlugin = {
+    id:'blackBg',
+    beforeDraw:function(ch){
+      var c=ch.ctx; c.save();
+      c.globalCompositeOperation='destination-over';
+      c.fillStyle='#000000'; c.fillRect(0,0,ch.width,ch.height);
+      c.restore();
+    }
+  };
+
+  var ch = new Chart(ctx, {
+    type:'line', data:{datasets:datasets},
+    options:{
+      responsive:false, animation:false,
+      layout:{padding:{top:40,right:40,bottom:30,left:10}},
+      plugins:{
+        blackBg: blackBgPlugin,
+        legend:{
+          display:true, position:'right',
+          labels:{color:'#e8eaf0',font:{size:16,family:'Arial'},padding:16,
+            usePointStyle:false,boxWidth:28,boxHeight:10,
+            generateLabels:function(ch){
+              return ch.data.datasets.map(function(ds,i){
+                return {text:ds.label,fillStyle:ds.borderColor,strokeStyle:ds.borderColor,
+                  lineWidth:2,hidden:false,datasetIndex:i};
+              });
+            }
+          }
+        },
+        title:{display:false},
+        tooltip:{enabled:false}
+      },
+      scales:{
+        x:{type:'linear',
+          title:{display:true,text:'Time (s)',color:'#9ca3af',font:{size:18,family:'Arial',weight:'bold'}},
+          grid:{color:'rgba(255,255,255,0.06)',lineWidth:1},
+          ticks:{color:'#9ca3af',font:{size:15,family:'Arial'},maxTicksLimit:10},
+          border:{color:'rgba(255,255,255,0.15)',width:1.5}},
+        y:{
+          title:{display:true,text:ylabel,color:'#9ca3af',font:{size:18,family:'Arial',weight:'bold'}},
+          grid:{color:'rgba(255,255,255,0.06)',lineWidth:1},
+          ticks:{color:'#9ca3af',font:{size:15,family:'Arial'}},
+          border:{color:'rgba(255,255,255,0.15)',width:1.5}}
+      }
+    },
+    plugins:[blackBgPlugin]
+  });
+
+  setTimeout(function(){
+    triggerDownload(dataURLtoBlob(off.toDataURL('image/png',1.0)), filename);
+    ch.destroy();
+  }, 300);
+}
+
+function setupDarkBtn(btnId, canvasId, filename, datasetsFn, ylabel) {
   var btn=document.getElementById(btnId);
-  if(btn) btn.addEventListener('click',function(){triggerDownload(dataURLtoBlob(document.getElementById(canvasId).toDataURL('image/png')),filename);});
+  if(btn) btn.addEventListener('click',function(){
+    exportDarkWithBlackBg(canvasId, filename);
+  });
+  if(datasetsFn) storeChartMeta(canvasId, datasetsFn, ylabel);
 }
 function setupPubBtn(btnId,pfx,fk,which){
   var btn=document.getElementById(btnId);
@@ -792,7 +993,7 @@ function setupPubBtn(btnId,pfx,fk,which){
 document.getElementById('p2-dl-zip').addEventListener('click',function(){
   if(!window.JSZip){alert('JSZip 未加载');return;}
   var zip=new JSZip();
-  var posKeys=FILE_KEYS.filter(function(k){return /pos/i.test(k);});
+  var posKeys=FILE_KEYS.filter(function(k){return k==='carPos'||k==='manPos';});
   posKeys.forEach(function(fk){
     var r=p2.results[fk];
     if(!r)return;
