@@ -109,12 +109,29 @@ header span{font-size:0.7rem;color:var(--muted);letter-spacing:0.1em;text-transf
 .charts-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 /* ── Collapsible stats ── */
 
+
+/* ── Tilt indicator card ── */
+.tilt-card-wrap{margin-bottom:1.5rem}
+.tilt-card{background:var(--surface);border:1px solid rgba(255,179,71,0.3);border-radius:14px;padding:1.4rem 1.8rem;position:relative;overflow:hidden}
+.tilt-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,179,71,0.07),transparent);pointer-events:none}
+.tilt-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem;gap:1rem;flex-wrap:wrap}
+.tilt-card-meta{}
+.tilt-card-label{font-size:0.65rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:0.3rem}
+.tilt-card-title{font-family:var(--fd);font-size:0.95rem;font-weight:800;color:var(--accent4)}
+.tilt-card-subtitle{font-size:0.68rem;color:var(--muted);margin-top:0.2rem}
+.tilt-table{width:100%;border-collapse:collapse;font-size:0.73rem}
+.tilt-table th{background:rgba(255,179,71,0.08);color:var(--accent4);padding:0.4rem 0.8rem;text-align:left;font-weight:600;letter-spacing:0.06em;border-bottom:1px solid rgba(255,179,71,0.15);white-space:nowrap}
+.tilt-table td{padding:0.38rem 0.8rem;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--text);white-space:nowrap}
+.tilt-table tr:last-child td{border-bottom:none}
+.tilt-table tr:hover td{background:rgba(255,255,255,0.02)}
+.tilt-dim{color:var(--muted)}.tilt-max{color:#ff6b6b}.tilt-min{color:#5b8fff}.tilt-mean{color:var(--accent4)}
 /* ── Jerk score cards ── */
-.jerk-cards{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+.jerk-cards{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}.jerk-cards.has-tilt{grid-template-columns:1fr 1fr 1fr}
 .jerk-card{background:var(--surface);border-radius:14px;padding:1.5rem 2rem;position:relative;overflow:hidden;border:1px solid var(--border)}
 .jerk-card::before{content:'';position:absolute;inset:0;opacity:0.06;pointer-events:none}
 .jerk-card.car::before{background:linear-gradient(135deg,#5b8fff,transparent)}
 .jerk-card.man::before{background:linear-gradient(135deg,#00e5a0,transparent)}
+.jerk-card.tilt::before{background:linear-gradient(135deg,rgba(255,179,71,0.15),transparent)}
 .jerk-card-label{font-size:0.65rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem}
 .jerk-card-title{font-family:var(--fd);font-size:0.95rem;font-weight:800;margin-bottom:1rem}
 .jerk-card.car .jerk-card-title{color:var(--accent2)}
@@ -234,7 +251,7 @@ header span{font-size:0.7rem;color:var(--muted);letter-spacing:0.1em;text-transf
       <input type="file" id="p2-folder-input" webkitdirectory multiple accept=".txt,.csv">
       <div class="fd-icon">📂</div>
       <div class="fd-title">拖拽 mm_data 文件夹到此处</div>
-      <div class="fd-sub">或点击选择文件夹 · 自动识别 car/manipulator × position/velocity/acceleration/jerk + time_list</div>
+      <div class="fd-sub">或点击选择文件夹 · 自动识别 car/manipulator × position/velocity/acceleration/jerk + tilt + time_list</div>
     </div>
     <div class="file-status-grid" id="p2-file-status" style="grid-template-columns:repeat(5,1fr)">
       <div class="file-badge missing" id="fb-car-pos"><div class="fb-name">car_position</div><div class="fb-status">未检测到</div></div>
@@ -246,7 +263,7 @@ header span{font-size:0.7rem;color:var(--muted);letter-spacing:0.1em;text-transf
       <div class="file-badge missing" id="fb-man-vel"><div class="fb-name">manip_velocity</div><div class="fb-status">未检测到</div></div>
       <div class="file-badge missing" id="fb-man-acc"><div class="fb-name">manip_accel</div><div class="fb-status">未检测到</div></div>
       <div class="file-badge missing" id="fb-man-jrk"><div class="fb-name">manip_jerk</div><div class="fb-status">未检测到</div></div>
-      <div style="display:none"></div>
+      <div class="file-badge missing" id="fb-man-tilt"><div class="fb-name">manip_tilt</div><div class="fb-status">未检测到</div></div>
     </div>
     <button class="btn-run hidden" id="p2-btn-run">▶ 解析所有文件 &amp; 生成图表</button>
     <div class="progress-msg" id="p2-msg"></div>
@@ -269,6 +286,17 @@ header span{font-size:0.7rem;color:var(--muted);letter-spacing:0.1em;text-transf
         <div class="jerk-card-score" id="jerk-score-man">—</div>
         <div class="jerk-card-unit">RMS Jerk &nbsp;rad/s³（各轴均值）</div>
         <div class="jerk-card-breakdown" id="jerk-breakdown-man"></div>
+      </div>
+      <div class="jerk-card tilt hidden" id="jerk-card-tilt" style="border-color:rgba(255,179,71,0.3)">
+        <div class="jerk-card-label">Cobot 末端姿态衡量指标</div>
+        <div class="jerk-card-title" style="color:var(--accent4)">MANIPULATOR TILT</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.8rem">manipulator_tilt · 单位：deg · 插值后统计</div>
+        <div style="overflow-x:auto">
+          <table class="tilt-table">
+            <thead><tr><th>维度</th><th>最大值 (deg)</th><th>最小值 (deg)</th><th>均值 (deg)</th></tr></thead>
+            <tbody id="tilt-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
     <div id="p2-charts-container"></div>
@@ -626,20 +654,20 @@ document.getElementById('p1-dl-time-txt').addEventListener('click',function(){if
    PAGE 2 — folder batch
 ═══════════════════════════════════════════ */
 var p2={
-  files:{carPos:null,carVel:null,carAcc:null,carJrk:null,manPos:null,manVel:null,manAcc:null,manJrk:null,time:null},
+  files:{carPos:null,carVel:null,carAcc:null,carJrk:null,manPos:null,manVel:null,manAcc:null,manJrk:null,manTilt:null,time:null},
   results:{},charts:{}
 };
-var FILE_KEYS=['carPos','carVel','carAcc','carJrk','manPos','manVel','manAcc','manJrk'];
+var FILE_KEYS=['carPos','carVel','carAcc','carJrk','manPos','manVel','manAcc','manJrk','manTilt'];
 var FILE_LABELS={carPos:'car_position',carVel:'car_velocity',carAcc:'car_acceleration',carJrk:'car_jerk',
-  manPos:'manipulator_position',manVel:'manipulator_velocity',manAcc:'manipulator_acceleration',manJrk:'manipulator_jerk'};
+  manPos:'manipulator_position',manVel:'manipulator_velocity',manAcc:'manipulator_acceleration',manJrk:'manipulator_jerk',manTilt:'manipulator_tilt'};
 var FILE_YLABELS={carPos:'Position',carVel:'Velocity',carAcc:'Acceleration',carJrk:'Jerk',
-  manPos:'Position',manVel:'Velocity',manAcc:'Acceleration',manJrk:'Jerk'};
+  manPos:'Position',manVel:'Velocity',manAcc:'Acceleration',manJrk:'Jerk',manTilt:'Tilt (deg)'};
 var FILE_PATTERNS={
   carPos:/^car_position/i, carVel:/^car_velocity/i, carAcc:/^car_acceleration/i, carJrk:/^car_jerk/i,
-  manPos:/^manipulator_position/i, manVel:/^manipulator_velocity/i, manAcc:/^manipulator_acceleration/i, manJrk:/^manipulator_jerk/i
+  manPos:/^manipulator_position/i, manVel:/^manipulator_velocity/i, manAcc:/^manipulator_acceleration/i, manJrk:/^manipulator_jerk/i, manTilt:/^manipulator_tilt/i
 };
 var BADGE_IDS={carPos:'fb-car-pos',carVel:'fb-car-vel',carAcc:'fb-car-acc',carJrk:'fb-car-jrk',
-  manPos:'fb-man-pos',manVel:'fb-man-vel',manAcc:'fb-man-acc',manJrk:'fb-man-jrk',time:'fb-time'};
+  manPos:'fb-man-pos',manVel:'fb-man-vel',manAcc:'fb-man-acc',manJrk:'fb-man-jrk',manTilt:'fb-man-tilt',time:'fb-time'};
 
 var p2Drop=document.getElementById('p2-folder-drop');
 var p2Input=document.getElementById('p2-folder-input');
@@ -649,11 +677,12 @@ p2Drop.addEventListener('dragleave',function(){p2Drop.classList.remove('drag');}
 p2Drop.addEventListener('drop',function(e){e.preventDefault();p2Drop.classList.remove('drag');handleFolder(e.dataTransfer.files);});
 
 function handleFolder(files) {
-  p2.files={carPos:null,carVel:null,carAcc:null,carJrk:null,manPos:null,manVel:null,manAcc:null,manJrk:null,time:null};
+  p2.files={carPos:null,carVel:null,carAcc:null,carJrk:null,manPos:null,manVel:null,manAcc:null,manJrk:null,manTilt:null,time:null};
   for(var i=0;i<files.length;i++){
     var f=files[i],base=f.name.split('/').pop().split('\\').pop();
     var bl=base.toLowerCase();
     if(/time_list/i.test(bl)) p2.files.time=f;
+    else if(FILE_PATTERNS.manTilt.test(bl)) p2.files.manTilt=f;
     else if(FILE_PATTERNS.manAcc.test(bl)) p2.files.manAcc=f;
     else if(FILE_PATTERNS.manJrk.test(bl)) p2.files.manJrk=f;
     else if(FILE_PATTERNS.manPos.test(bl)) p2.files.manPos=f;
@@ -664,7 +693,8 @@ function handleFolder(files) {
     else if(FILE_PATTERNS.carVel.test(bl)) p2.files.carVel=f;
   }
   updateBadges();
-  var ok=p2.files.time&&FILE_KEYS.every(function(k){return !!p2.files[k];});
+  var REQUIRED_KEYS=['carPos','carVel','carAcc','carJrk','manPos','manVel','manAcc','manJrk'];
+  var ok=p2.files.time&&REQUIRED_KEYS.every(function(k){return !!p2.files[k];});
   document.getElementById('p2-btn-run').classList[ok?'remove':'add']('hidden');
 }
 
@@ -681,9 +711,11 @@ function updateBadges(){
 
 document.getElementById('p2-btn-run').addEventListener('click',function(){
   document.getElementById('p2-msg').textContent='读取文件…';
-  var loaded={},total=9,count=0;
-  function onLoad(k,t){loaded[k]=t;count++;if(count===total){document.getElementById('p2-msg').textContent='解析中…';setTimeout(function(){try{p2Process(loaded);document.getElementById('p2-msg').textContent='✓ 完成，共 16 张图表';}catch(e){document.getElementById('p2-msg').textContent='❌ '+e.message;console.error(e);}},20);}}
-  FILE_KEYS.forEach(function(k){readFile(p2.files[k],function(t){onLoad(k,t);});});
+  var keysToLoad=['carPos','carVel','carAcc','carJrk','manPos','manVel','manAcc','manJrk'];
+  if(p2.files.manTilt) keysToLoad.push('manTilt');
+  var total=keysToLoad.length+1, loaded={}, count=0;
+  function onLoad(k,t){loaded[k]=t;count++;if(count===total){document.getElementById('p2-msg').textContent='解析中…';setTimeout(function(){try{p2Process(loaded);var nc=keysToLoad.length*2;document.getElementById('p2-msg').textContent='✓ 完成，共 '+nc+' 张图表';}catch(e){document.getElementById('p2-msg').textContent='❌ '+e.message;console.error(e);}},20);}}
+  keysToLoad.forEach(function(k){readFile(p2.files[k],function(t){onLoad(k,t);});});
   readFile(p2.files.time,function(t){onLoad('time',t);});
 });
 
@@ -712,8 +744,9 @@ function p2Process(loaded) {
 
   var firstIr=null;
   var CAR_KEYS=['carPos','carVel','carAcc','carJrk'];
-  var MAN_KEYS=['manPos','manVel','manAcc','manJrk'];
+  var MAN_KEYS=['manPos','manVel','manAcc','manJrk','manTilt'];
   FILE_KEYS.forEach(function(fk){
+    if(!loaded[fk]) return;
     var pts=parseLines(loaded[fk]),nDim=pts[0].length;
     var ct=buildCumTime(pts,times);
     var ir=interpolate1ms(ct.cumTime,pts,nDim);
@@ -862,6 +895,25 @@ function p2Process(loaded) {
       });
     });
     document.getElementById('p2-jerk-cards').classList.remove('hidden');
+
+    // ── Tilt stats card ──
+    var tiltR = p2.results['manTilt'];
+    if(tiltR){
+      var tbody2=document.getElementById('tilt-tbody');
+      tbody2.innerHTML='';
+      for(var d2=0;d2<tiltR.nDim;d2++){
+        var arr2=tiltR.ir.interpPts[d2];
+        var st2=computeStats(arr2);
+        var tr2=document.createElement('tr');
+        tr2.innerHTML='<td class="tilt-dim">D'+(d2+1)+'</td>'+
+          '<td class="tilt-max">'+fmt4(st2.max)+'</td>'+
+          '<td class="tilt-min">'+fmt4(st2.min)+'</td>'+
+          '<td class="tilt-mean">'+fmt4(st2.mean)+'</td>';
+        tbody2.appendChild(tr2);
+      }
+      document.getElementById('jerk-card-tilt').classList.remove('hidden');
+      document.getElementById('p2-jerk-cards').classList.add('has-tilt');
+    }
   }, 200);
 
   document.getElementById('p2-stats').classList.remove('hidden');
