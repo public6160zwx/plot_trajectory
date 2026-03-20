@@ -332,13 +332,22 @@ function parseLines(text) {
 function readFile(f,cb){var r=new FileReader();r.onload=function(e){cb(e.target.result);};r.readAsText(f);}
 
 function buildCumTime(pts, times) {
-  var nPts=pts.length, dtArray;
-  if(times.length===nPts) dtArray=times;
-  else if(times.length%nPts===0){var s=times.length/nPts;dtArray=times.filter(function(_,i){return i%s===0;});}
-  else dtArray=times.slice(0,nPts);
-  var cum=[0];
-  for(var i=1;i<nPts;i++) cum.push(cum[i-1]+(dtArray[i]||0));
-  return {cumTime:cum, dtArray:dtArray};
+  // times is now a timestamp array (e.g. 0, 0.008, 0.016...)
+  // Align length to nPts: if times has more entries (e.g. repeated), take evenly-spaced samples
+  var nPts=pts.length, tsArray;
+  if(times.length===nPts) {
+    tsArray=times;
+  } else if(times.length%nPts===0) {
+    var s=times.length/nPts;
+    tsArray=times.filter(function(_,i){return i%s===0;});
+  } else {
+    // take first nPts values
+    tsArray=times.slice(0,nPts);
+  }
+  // Normalize: shift so first timestamp = 0
+  var t0=tsArray[0]||0;
+  var cum=tsArray.map(function(t){return t-t0;});
+  return {cumTime:cum, dtArray:cum};
 }
 
 function interpolate1ms(cumTime, pts, nDim) {

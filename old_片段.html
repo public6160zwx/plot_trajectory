@@ -301,9 +301,9 @@ header span{font-size:0.7rem;color:var(--muted);letter-spacing:0.1em;text-transf
     </div>
     <div id="p2-charts-container"></div>
     <div class="dl-section hidden" id="p2-dl">
-      <div class="dl-info"><strong>批量下载</strong> — position 文件插值结果 + 时间序列，打包为 ZIP</div>
+      <div class="dl-info"><strong>批量下载</strong> — position 文件 + car_velocity 插值结果 + 时间序列，打包为 ZIP</div>
       <div class="dl-btns">
-        <button class="btn-dl" id="p2-dl-zip">⬇ 下载 ZIP 包（position + 时间序列）</button>
+        <button class="btn-dl" id="p2-dl-zip">⬇ 下载 ZIP 包（position + car_velocity + 时间序列）</button>
       </div>
     </div>
   </div>
@@ -1045,7 +1045,7 @@ function setupPubBtn(btnId,pfx,fk,which){
 document.getElementById('p2-dl-zip').addEventListener('click',function(){
   if(!window.JSZip){alert('JSZip 未加载');return;}
   var zip=new JSZip();
-  var posKeys=FILE_KEYS.filter(function(k){return k==='carPos'||k==='manPos';});
+  var posKeys=FILE_KEYS.filter(function(k){return k==='carPos'||k==='manPos'||k==='carVel';});
   posKeys.forEach(function(fk){
     var r=p2.results[fk];
     if(!r)return;
@@ -1056,7 +1056,7 @@ document.getElementById('p2-dl-zip').addEventListener('click',function(){
     zip.file(FILE_LABELS[fk]+'_time_list_1ms.txt', buildTimeTXT(ir.interpTime));
   });
   zip.generateAsync({type:'blob'}).then(function(content){
-    triggerDownload(content,'position_interpolated.zip');
+    triggerDownload(content,'trajectory_interpolated.zip');
   });
 });
 
